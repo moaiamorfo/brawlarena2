@@ -1,3 +1,6 @@
+<!--
+/*
+-->
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -329,33 +332,30 @@
 
     <script>
         /***********************************************************************
-         * SEZIONE PWA: GENERAZIONE MANIFEST VIA DATA URI E SERVICE WORKER
+         * SEZIONE PWA: CONFIGURAZIONE MANIFEST DINAMICO
          ***********************************************************************/
-        // Generazione della path corretta basata sulla posizione corrente per evitare problemi di installabilità
-        const currentPath = window.location.pathname;
-        const currentOrigin = window.location.origin;
-
         const manifest = {
-            "id": "brawl-arena-pwa-game",
+            "id": "brawl-arena-pwa-game-v5",
             "name": "Brawl Arena",
             "short_name": "BrawlArena",
             "description": "Cyberpunk action arena game",
-            "start_url": window.location.href, // Forza l'avvio sull'URL esatto corrente
+            "start_url": window.location.href, // Punta esattamente all'indirizzo fisico in uso
+            "scope": window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) || "/",
             "display": "standalone",
-            "display_override": ["standalone", "fullscreen", "window-controls-overlay"],
+            "display_override": ["standalone", "fullscreen"],
             "orientation": "landscape",
             "background_color": "#080811",
             "theme_color": "#080811",
             "categories": ["games", "action"],
             "icons": [
                 {
-                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'><rect width='192' height='192' fill='%23080811'/><circle cx='96' cy='96' r='70' fill='%23ff0055'/><polygon points='96,56 126,116 66,116' fill='%23ffffff'/></svg>",
+                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23080811'/><circle cx='96' cy='96' r='70' fill='%23ff0055'/><polygon points='96,56 126,116 66,116' fill='%23ffffff'/></svg>",
                     "sizes": "192x192",
                     "type": "image/svg+xml",
                     "purpose": "any maskable"
                 },
                 {
-                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23080811'/><circle cx='256' cy='256' r='200' fill='%23ff0055'/><polygon points='256,150 336,310 176,310' fill='%23ffffff'/></svg>",
+                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23080811'/><circle cx='256' cy='256' r='180' fill='%23ff0055'/><polygon points='256,140 336,300 176,300' fill='%23ffffff'/></svg>",
                     "sizes": "512x512",
                     "type": "image/svg+xml",
                     "purpose": "any maskable"
@@ -363,59 +363,30 @@
             ]
         };
 
-        // Generazione del Manifest conforme a standard rigorosi di installazione nativa
+        // Iniezione del Manifest tramite codifica Base64 sicura
         const manifestStr = JSON.stringify(manifest);
-        const manifestBase64 = btoa(encodeURIComponent(manifestStr).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-            return String.fromCharCode('0x' + p1);
-        }));
-        const manifestURL = 'data:application/manifest+json;base64,' + manifestBase64;
-
+        const manifestBase64 = btoa(unescape(encodeURIComponent(manifestStr)));
         const link = document.createElement('link');
         link.rel = 'manifest';
-        link.href = manifestURL;
+        link.href = 'data:application/manifest+json;base64,' + manifestBase64;
         document.head.appendChild(link);
 
-        // Registrazione robusta del Service Worker via Blob (gestito in modalità provvisoria)
+        // Registrazione del Service Worker poliglotta (punta direttamente a questo file!)
         if ('serviceWorker' in navigator) {
-            const swCode = `
-                const CACHE_NAME = 'brawl-arena-v4';
-                // Usiamo una cache flessibile senza costringere a percorsi rigidi che generano 404
-                self.addEventListener('install', (e) => {
-                    self.skipWaiting();
-                });
-
-                self.addEventListener('activate', (e) => {
-                    e.waitUntil(self.clients.claim());
-                });
-
-                self.addEventListener('fetch', (e) => {
-                    // Risposta immediata di rete con fallback per la massima affidabilità
-                    e.respondWith(
-                        fetch(e.request).catch(() => {
-                            return caches.match(e.request);
-                        })
-                    );
-                });
-            `;
-            try {
-                const swBlob = new Blob([swCode], {type: 'application/javascript'});
-                const swURL = URL.createObjectURL(swBlob);
-                
-                // Registriamo con uno scope locale generico per garantire l'installabilità immediata
-                navigator.serviceWorker.register(swURL, { scope: './' }).catch(err => {
-                    // Fallback se la registrazione del blob fallisce in ambienti protetti (es. iframe locali)
-                    console.log("SW non registrato direttamente, utilizzo della modalità sandbox.");
-                });
-            } catch (e) {
-                console.log("Inizializzazione SW bypassata.");
-            }
+            // Registra questo stesso file HTML (window.location.href) come Service Worker
+            navigator.serviceWorker.register(window.location.href, { scope: './' })
+            .then((reg) => {
+                console.log("Service Worker registrato con successo sull'URL del gioco!");
+            })
+            .catch((err) => {
+                console.log("Installazione SW locale provvisoria.");
+            });
         }
 
-        // Verifica dello stato del dispositivo per installazione nativa guidata
+        // Rilevamento dispositivo iOS per guidare l'utente all'installazione nativa
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
 
-        // Se siamo su iOS e non in modalità standalone nativa, mostriamo la guida personalizzata
         if (isIOS && !isStandalone) {
             document.getElementById('ios-install-instructions').classList.remove('hidden');
         }
@@ -424,7 +395,7 @@
             document.getElementById('ios-install-instructions').classList.add('hidden');
         });
 
-        // Gestione dell'installazione per browser Android / Chrome
+        // Gestione dell'evento di installazione nativa su Android / Chrome
         let deferredPrompt;
         const pwaBtn = document.getElementById('pwa-btn');
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -1809,3 +1780,52 @@
     </script>
 </body>
 </html>
+<!--
+*/
+const CACHE_NAME = 'brawl-arena-v5';
+self.addEventListener('install', (e) => {
+    e.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll([
+                self.registration.scope,
+                self.serviceWorker.scriptURL
+            ]).catch(() => {});
+        }).then(() => self.skipWaiting())
+    );
+});
+
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.map((key) => {
+                    if (key !== CACHE_NAME) {
+                        return caches.delete(key);
+                    }
+                })
+            );
+        }).then(() => self.clients.claim())
+    );
+});
+
+self.addEventListener('fetch', (e) => {
+    e.respondWith(
+        caches.match(e.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(e.request).then((response) => {
+                if (response && response.status === 200 && response.type === 'basic') {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(e.request, responseToCache);
+                    });
+                }
+                return response;
+            }).catch(() => {
+                return caches.match(self.registration.scope);
+            });
+        })
+    );
+});
+// -->
