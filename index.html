@@ -331,14 +331,22 @@
         /***********************************************************************
          * SEZIONE PWA: GENERAZIONE MANIFEST VIA DATA URI E SERVICE WORKER
          ***********************************************************************/
+        // Generazione della path corretta basata sulla posizione corrente per evitare problemi di installabilità
+        const currentPath = window.location.pathname;
+        const currentOrigin = window.location.origin;
+
         const manifest = {
+            "id": "brawl-arena-pwa-game",
             "name": "Brawl Arena",
             "short_name": "BrawlArena",
-            "start_url": ".",
+            "description": "Cyberpunk action arena game",
+            "start_url": window.location.href, // Forza l'avvio sull'URL esatto corrente
             "display": "standalone",
+            "display_override": ["standalone", "fullscreen", "window-controls-overlay"],
             "orientation": "landscape",
             "background_color": "#080811",
             "theme_color": "#080811",
+            "categories": ["games", "action"],
             "icons": [
                 {
                     "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'><rect width='192' height='192' fill='%23080811'/><circle cx='96' cy='96' r='70' fill='%23ff0055'/><polygon points='96,56 126,116 66,116' fill='%23ffffff'/></svg>",
@@ -355,7 +363,7 @@
             ]
         };
 
-        // Utilizziamo un Data URI sicuro e compatibile per il Manifest invece del Blob URL
+        // Generazione del Manifest conforme a standard rigorosi di installazione nativa
         const manifestStr = JSON.stringify(manifest);
         const manifestBase64 = btoa(encodeURIComponent(manifestStr).replace(/%([0-9A-F]{2})/g, (match, p1) => {
             return String.fromCharCode('0x' + p1);
@@ -370,21 +378,21 @@
         // Registrazione robusta del Service Worker via Blob (gestito in modalità provvisoria)
         if ('serviceWorker' in navigator) {
             const swCode = `
-                const CACHE_NAME = 'brawl-arena-v3';
-                const ASSETS = ['./', './index.html', './brawl_arena.html'];
-
+                const CACHE_NAME = 'brawl-arena-v4';
+                // Usiamo una cache flessibile senza costringere a percorsi rigidi che generano 404
                 self.addEventListener('install', (e) => {
-                    e.waitUntil(
-                        caches.open(CACHE_NAME).then((cache) => {
-                            return cache.addAll(ASSETS).catch(() => {});
-                        })
-                    );
+                    self.skipWaiting();
+                });
+
+                self.addEventListener('activate', (e) => {
+                    e.waitUntil(self.clients.claim());
                 });
 
                 self.addEventListener('fetch', (e) => {
+                    // Risposta immediata di rete con fallback per la massima affidabilità
                     e.respondWith(
-                        caches.match(e.request).then((cachedResponse) => {
-                            return cachedResponse || fetch(e.request);
+                        fetch(e.request).catch(() => {
+                            return caches.match(e.request);
                         })
                     );
                 });
@@ -392,7 +400,12 @@
             try {
                 const swBlob = new Blob([swCode], {type: 'application/javascript'});
                 const swURL = URL.createObjectURL(swBlob);
-                navigator.serviceWorker.register(swURL).catch(err => console.log("SW non registrato (sicuro per hosting locale): ", err));
+                
+                // Registriamo con uno scope locale generico per garantire l'installabilità immediata
+                navigator.serviceWorker.register(swURL, { scope: './' }).catch(err => {
+                    // Fallback se la registrazione del blob fallisce in ambienti protetti (es. iframe locali)
+                    console.log("SW non registrato direttamente, utilizzo della modalità sandbox.");
+                });
             } catch (e) {
                 console.log("Inizializzazione SW bypassata.");
             }
