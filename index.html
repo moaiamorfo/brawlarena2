@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Brawl Arena</title>
-    <!-- Configurazione PWA base tramite Meta Tags -->
+    
+    <!-- Configurazione PWA avanzata per comportamento App Nativa (iOS & Android) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-title" content="Brawl Arena">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#080811">
+    
+    <!-- Icone PWA per Apple Touch -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23080811'/><circle cx='96' cy='96' r='70' fill='%23ff0055'/><polygon points='96,56 126,116 66,116' fill='%23ffffff'/></svg>">
     
     <style>
         /* CSS Reset e Stili Globali per Mobile */
@@ -197,7 +203,7 @@
             }
         }
 
-        /* Pulsante PWA Installa */
+        /* Pulsante PWA Installa (Android/Chrome) */
         #pwa-btn {
             position: absolute;
             bottom: 15px;
@@ -214,6 +220,47 @@
         }
         #pwa-btn:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Pannello d'installazione iOS guidato */
+        #ios-install-instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 15, 26, 0.95);
+            border: 2px solid #00f2fe;
+            border-radius: 16px;
+            padding: 15px 20px;
+            width: 90%;
+            max-width: 420px;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 242, 254, 0.25);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+        }
+
+        #ios-install-instructions div {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            color: #ffffff;
+        }
+
+        #close-ios-btn {
+            background: #ff0055;
+            border: none;
+            color: white;
+            padding: 6px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            align-self: center;
+            cursor: pointer;
+            margin-top: 5px;
+            outline: none;
         }
     </style>
 </head>
@@ -245,6 +292,15 @@
             <button id="pwa-btn" class="hidden">INSTALLA APP</button>
         </div>
 
+        <!-- Istruzioni di installazione iOS PWA personalizzate (Appare solo su dispositivi Apple non standalone) -->
+        <div id="ios-install-instructions" class="hidden">
+            <div style="font-weight: bold; color: #00f2fe; font-size: 1.05rem; margin-bottom: 3px;">Installa Brawl Arena sul tuo iPhone</div>
+            <div>
+                Premi il tasto di condivisione <span style="background: rgba(255,255,255,0.2); padding: 2px 7px; border-radius: 5px; font-weight: bold; font-size: 1.1rem; vertical-align: middle;">⎋</span> (in basso su Safari) e seleziona <strong>"Aggiungi alla schermata Home"</strong> per giocare a schermo intero senza bordi.
+            </div>
+            <button id="close-ios-btn">CHIUDI</button>
+        </div>
+
         <!-- Schermata di Game Over -->
         <div id="game-over-screen" class="overlay-screen hidden">
             <div id="game-over-panel">
@@ -273,7 +329,7 @@
 
     <script>
         /***********************************************************************
-         * SEZIONE PWA: GENERAZIONE DINAMICA E REGISTRAZIONE SERVICE WORKER
+         * SEZIONE PWA: GENERAZIONE MANIFEST VIA DATA URI E SERVICE WORKER
          ***********************************************************************/
         const manifest = {
             "name": "Brawl Arena",
@@ -299,17 +355,23 @@
             ]
         };
 
-        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-        const manifestURL = URL.createObjectURL(manifestBlob);
+        // Utilizziamo un Data URI sicuro e compatibile per il Manifest invece del Blob URL
+        const manifestStr = JSON.stringify(manifest);
+        const manifestBase64 = btoa(encodeURIComponent(manifestStr).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+            return String.fromCharCode('0x' + p1);
+        }));
+        const manifestURL = 'data:application/manifest+json;base64,' + manifestBase64;
+
         const link = document.createElement('link');
         link.rel = 'manifest';
         link.href = manifestURL;
         document.head.appendChild(link);
 
+        // Registrazione robusta del Service Worker via Blob (gestito in modalità provvisoria)
         if ('serviceWorker' in navigator) {
             const swCode = `
-                const CACHE_NAME = 'brawl-arena-v2';
-                const ASSETS = ['/', 'index.html'];
+                const CACHE_NAME = 'brawl-arena-v3';
+                const ASSETS = ['./', './index.html', './brawl_arena.html'];
 
                 self.addEventListener('install', (e) => {
                     e.waitUntil(
@@ -327,11 +389,29 @@
                     );
                 });
             `;
-            const swBlob = new Blob([swCode], {type: 'application/javascript'});
-            const swURL = URL.createObjectURL(swBlob);
-            navigator.serviceWorker.register(swURL).catch(err => console.log("SW non registrato: ", err));
+            try {
+                const swBlob = new Blob([swCode], {type: 'application/javascript'});
+                const swURL = URL.createObjectURL(swBlob);
+                navigator.serviceWorker.register(swURL).catch(err => console.log("SW non registrato (sicuro per hosting locale): ", err));
+            } catch (e) {
+                console.log("Inizializzazione SW bypassata.");
+            }
         }
 
+        // Verifica dello stato del dispositivo per installazione nativa guidata
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+
+        // Se siamo su iOS e non in modalità standalone nativa, mostriamo la guida personalizzata
+        if (isIOS && !isStandalone) {
+            document.getElementById('ios-install-instructions').classList.remove('hidden');
+        }
+
+        document.getElementById('close-ios-btn').addEventListener('click', () => {
+            document.getElementById('ios-install-instructions').classList.add('hidden');
+        });
+
+        // Gestione dell'installazione per browser Android / Chrome
         let deferredPrompt;
         const pwaBtn = document.getElementById('pwa-btn');
         window.addEventListener('beforeinstallprompt', (e) => {
