@@ -1,0 +1,27 @@
+{
+  "id": "brawl-arena-pwa-game",
+  "name": "Brawl Arena",
+  "short_name": "BrawlArena",
+  "description": "Cyberpunk action arena game",
+  "start_url": "brawl_arena.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#080811",
+  "theme_color": "#080811",
+  "categories": ["games", "action"],
+  "icons": [
+    {
+      "src": "skull.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "skull.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
